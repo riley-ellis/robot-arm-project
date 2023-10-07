@@ -22,7 +22,7 @@ class ArduinoComms(Node):
         data_str = ",".join(map(str, msg.data)) + "\n"
         #Write the data to the serial port
         self.ser.write(data_str.encode())
-        print(f"Callback called at {datetime.now().strftime('%H:%M:%S.%f')}")
+        #print(f"Callback called at {datetime.now().strftime('%H:%M:%S.%f')}")
 
 
     def on_exit(self):

@@ -4,16 +4,26 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Int32MultiArray
 from datetime import datetime
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy #using this to diagnose latency issue
+import time
 
 class servo_controller(Node):
     def __init__(self):
         super().__init__("servo_controller")
+        #Custom QoS profile
+        custom_qos_profile = QoSProfile(
+            depth=5, 
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST)
         #subsribe to joy node
         self.ps4_subscriber = self.create_subscription(
-            Joy, "joy", self.ps4_callback, 10)
+            Joy, "joy", self.ps4_callback, custom_qos_profile)
         #create publisher for servos
         self.servo_publisher = self.create_publisher(
-            Int32MultiArray, 'servo_positions', 10)
+            Int32MultiArray, 'servo_positions', custom_qos_profile)
+
+        self.last_processed_joy_signature = None #flag to wait for new messages
+        self.last_gripper_toggle_time = 0 #adding this for button bounceback
         
         
         #initially assign control of servos 2 and 3
@@ -49,10 +59,15 @@ class servo_controller(Node):
         self.current_joy_msg = None
         
         #timer to update servo positions at 5Hz
-        self.create_timer(0.2, self.update_servo_positions)
+        self.create_timer(0.1, self.update_servo_positions)
 
     def ps4_callback(self, msg):
+        current_joy_signature = str(msg.buttons) + str(msg.axes)
+        if self.last_processed_joy_signature == current_joy_signature:
+            return
+        self.last_processed_joy_signature = current_joy_signature
         self.current_joy_msg = msg
+        #print(f"New joy message received at {datetime.now().strftime('%H:%M:%S.%f')}")
         x = msg.buttons[0]
         o = msg.buttons[1]
         triangle = msg.buttons[2]
@@ -61,10 +76,12 @@ class servo_controller(Node):
         LR_pad = msg.axes[6]
         UD_pad = msg.axes[7]
 
+        #print(f"R2 value: {R2}")
+
         self.right_stick([x, o, triangle, square])
         self.left_stick(LR_pad, UD_pad)
         self.gripper(R2)
-        print(f"Callback called at {datetime.now().strftime('%H:%M:%S.%f')}")
+        #print(f"Callback called at {datetime.now().strftime('%H:%M:%S.%f')}")
     
     def right_stick(self, right_assignment):
         servos = [1, 2, 3, 4]
@@ -94,14 +111,20 @@ class servo_controller(Node):
                 self.left_servo = potential_servo
 
     def gripper(self, R2):
-        if R2 == 1:
+        current_time = time.time()
+        #print(f"gripper method called with R2: {R2}")
+        if R2 == 1 and current_time - self.last_gripper_toggle_time > 0.25: #ignores button presses within quarter of a second
+            self.last_gripper_toggle_time = current_time
+            #print("R2 is pressed")
             if self.gripper_position == self.gripper_opened:
                 self.gripper_position = self.gripper_closed
 
             else:
                 self.gripper_position = self.gripper_opened
         else:
+            #print("Button R2 not pressed")
             return
+        print(f"gripper position: {self.gripper_position}")
         
     def publish_servo_positions(self):
         positions_msg = Int32MultiArray()
