@@ -52,7 +52,7 @@ class servo_controller(Node):
         self.servo_positions = [self.servo1_position, self.servo2_position, 
                                 self.servo3_position, self.servo4_position]
         self.servo_min = [self.servo1_pos_min, self.servo2_pos_min,
-                          self.servo3_pos_min, self.servo4_pos_max]
+                          self.servo3_pos_min, self.servo4_pos_min]
         self.servo_max = [self.servo1_pos_max, self.servo2_pos_max,
                           self.servo3_pos_max, self.servo4_pos_max]
     
@@ -91,6 +91,7 @@ class servo_controller(Node):
             
             if potential_servo != self.left_servo:
                 self.right_servo = potential_servo
+        self.get_logger().info(f'Right Servo: {self.right_servo}')
 
     def left_stick(self, LR_pad, UD_pad):
         if (LR_pad == 0) and (UD_pad == 0):
@@ -110,6 +111,8 @@ class servo_controller(Node):
             if potential_servo and potential_servo != self.right_servo:
                 self.left_servo = potential_servo
 
+        self.get_logger().info(f'Left Servo: {self.left_servo}')
+
     def gripper(self, R2):
         current_time = time.time()
         #print(f"gripper method called with R2: {R2}")
@@ -128,14 +131,16 @@ class servo_controller(Node):
         
     def publish_servo_positions(self):
         positions_msg = Int32MultiArray()
-        positions_msg.data = [self.servo1_position,
-                              self.servo2_position,
-                              self.servo3_position,
-                              self.servo4_position,
+        positions_msg.data = [self.servo_positions[0],
+                              self.servo_positions[1],
+                              self.servo_positions[2],
+                              self.servo_positions[3],
                               self.gripper_position]
         self.servo_publisher.publish(positions_msg)
         
     def update_servo_positions(self):
+        # if self.current_joy_msg is not None and self.current_joy_msg.buttons[3] == 0:  # Checking if square is not pressed
+        self.get_logger().info(f'Initial Servo Positions: {self.servo_positions}')
         if self.current_joy_msg is not None:
 
             #left servo
@@ -162,6 +167,7 @@ class servo_controller(Node):
                 self.servo_min[self.right_servo - 1], 
                 self.servo_max[self.right_servo - 1])
             
+            self.get_logger().info(f'Updated Servo Positions: {self.servo_positions}')
             #publish positions
             self.publish_servo_positions()
 
